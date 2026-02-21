@@ -32,6 +32,13 @@ AGENTS_CONFIG: dict[str, AgentConfig] = {
         emoji="🐍",
         file_extensions=[".pdf", ".txt", ".md", ".py"],
     ),
+    "algorithms": AgentConfig(
+        name="Data Structures and Algorithms Expert",
+        description="Data Structures and Algorithms: từ cơ bản đến senior level: LeetCode, system design, time/space complexity...",
+        knowledge_base_path=str(BASE_DIR / "knowledge_bases/algorithms"),
+        emoji="🧮",
+        file_extensions=[".pdf", ".txt", ".md", ".py"],
+    ),
     "fastapi": AgentConfig(
         name="FastAPI Expert",
         description="FastAPI: routing, middleware, Pydantic, dependencies, async, security, Docker deployment...",
@@ -51,19 +58,6 @@ AGENTS_CONFIG: dict[str, AgentConfig] = {
         emoji="🇬🇧",
         file_extensions=[".pdf", ".txt", ".md"],
     ),
-    # ── Thêm agent mới tại đây ──────────────────────────────────
-    # "docker": AgentConfig(
-    #     name="Docker & DevOps",
-    #     description="Docker, Kubernetes, CI/CD, GitHub Actions...",
-    #     knowledge_base_path=str(BASE_DIR / "knowledge_bases/docker"),
-    #     emoji="🐳",
-    # ),
-    # "algorithms": AgentConfig(
-    #     name="DSA Expert",
-    #     description="Data Structures & Algorithms, LeetCode, system design...",
-    #     knowledge_base_path=str(BASE_DIR / "knowledge_bases/algorithms"),
-    #     emoji="🧮",
-    # ),
 }
 
 # ── LLM ──────────────────────────────────────────────────────────────────────

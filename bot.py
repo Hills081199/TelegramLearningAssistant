@@ -169,7 +169,7 @@ class LearningBot:
 
     async def cmd_sync(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         """Sync tất cả KBs (chỉ embed file mới/thay đổi)"""
-        msg = await update.message.reply_text("🔄 Đang sync tài liệu...")
+        msg = await update.effective_message.reply_text("🔄 Đang sync tài liệu...")
         results = []
         for aid, agent in self.agents.items():
             result = agent.sync_knowledge_base()
