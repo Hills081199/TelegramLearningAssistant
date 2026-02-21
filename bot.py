@@ -149,7 +149,20 @@ class LearningBot:
         """Gợi ý random topics từ knowledge bases"""
         chat_id = str(update.effective_chat.id)
         await ctx.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
-        await self._send_random_topics(update)
+        
+        # Nếu có args, random theo KB cụ thể
+        if ctx.args:
+            kb_id = ctx.args[0].lower()
+            if kb_id in self.agents:
+                await self._send_random_topics(update, agent_filter=kb_id)
+            else:
+                await update.message.reply_text(
+                    f"❌ Knowledge base '{kb_id}' không tồn tại.\n"
+                    f"Có sẵn: {', '.join(self.agents.keys())}"
+                )
+        else:
+            # Hiển thị menu chọn KB
+            await self._send_random_menu(update)
 
     async def cmd_review(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await self._send_review(update)
@@ -492,18 +505,59 @@ class LearningBot:
 
     # ── Random Topic ──────────────────────────────────────────────────────────
 
-    async def _send_random_topics(self, update: Update, callback: bool = False):
+    async def _send_random_menu(self, update: Update, callback: bool = False):
+        """
+        Hiển thị menu chọn knowledge base để random topics.
+        """
+        keyboard = [
+            [InlineKeyboardButton(
+                f"{cfg.emoji} {cfg.name}",
+                callback_data=f"random_kb:{aid}"
+            )]
+            for aid, cfg in AGENTS_CONFIG.items()
+        ]
+        keyboard.append([
+            InlineKeyboardButton("🎲 Tất cả (Random mix)", callback_data="random_kb:all")
+        ])
+        
+        text = (
+            "🎲 *Random Topic*\n\n"
+            "Chọn knowledge base để random topic:\n"
+            "(hoặc random mix từ tất cả)"
+        )
+        
+        fn = self._get_reply_fn(update, callback)
+        await fn(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
+    async def _send_random_topics(
+        self, 
+        update: Update, 
+        callback: bool = False, 
+        agent_filter: Optional[str] = None
+    ):
         """
         Gợi ý random topics từ knowledge bases.
         Dùng LLM để extract tên topic sạch từ content chunks.
+        
+        Args:
+            agent_filter: Nếu set, chỉ random từ agent này. None = tất cả.
         """
         all_topics = []
 
-        for aid, agent in self.agents.items():
+        # Filter agents nếu được chỉ định
+        target_agents = {agent_filter: self.agents[agent_filter]} if agent_filter else self.agents
+
+        for aid, agent in target_agents.items():
             if not agent.rag:
                 continue
             cfg = AGENTS_CONFIG[aid]
-            raw_topics = agent.rag.get_random_topics(n=2)
+            # Nếu chỉ 1 agent, lấy nhiều topic hơn
+            n_topics = 5 if agent_filter else 2
+            raw_topics = agent.rag.get_random_topics(n=n_topics)
             for t in raw_topics:
                 t["agent_id"] = aid
                 t["agent_name"] = cfg.name
@@ -512,13 +566,16 @@ class LearningBot:
 
         if not all_topics:
             fn = self._get_reply_fn(update, callback)
-            await fn("📭 Knowledge base trống. Hãy thêm tài liệu rồi /sync trước!")
+            kb_name = AGENTS_CONFIG[agent_filter].name if agent_filter else "Knowledge base"
+            await fn(f"📭 {kb_name} trống. Hãy thêm tài liệu rồi /sync trước!")
             return
 
         # Dùng LLM để extract tên topic ngắn gọn từ content preview
         import random
         random.shuffle(all_topics)
-        selected = all_topics[:4]  # Max 4 topics
+        # Nếu filter 1 KB cụ thể → hiển thị nhiều hơn
+        max_topics = 5 if agent_filter else 4
+        selected = all_topics[:max_topics]
 
         snippets = "\n".join(
             f"{i+1}. [{t['agent_name']}] File: {t['source_file']}\nNội dung: {t['content_preview'][:150]}"
@@ -538,7 +595,11 @@ class LearningBot:
             topic_names = []
 
         # Build message + InlineKeyboard
-        text = "🎲 *Gợi ý topic để học hôm nay:*\n\n"
+        if agent_filter:
+            cfg = AGENTS_CONFIG[agent_filter]
+            text = f"🎲 *Topics từ {cfg.emoji} {cfg.name}:*\n\n"
+        else:
+            text = "🎲 *Gợi ý topic để học hôm nay:*\n\n"
         keyboard = []
 
         for i, t in enumerate(selected):
@@ -561,10 +622,16 @@ class LearningBot:
                 )]
             )
 
+        # Button back to menu và quiz
+        back_callback = f"random_kb:{agent_filter}" if agent_filter else "action:random_topic"
         keyboard.append([
-            InlineKeyboardButton("🎲 Random lại", callback_data="action:random_topic"),
+            InlineKeyboardButton("🎲 Random lại", callback_data=back_callback),
             InlineKeyboardButton("🧠 Quiz ngay", callback_data="action:context_quiz"),
         ])
+        if agent_filter:
+            keyboard.append([
+                InlineKeyboardButton("🔙 Chọn KB khác", callback_data="action:random_topic"),
+            ])
 
         fn = self._get_reply_fn(update, callback)
         await fn(

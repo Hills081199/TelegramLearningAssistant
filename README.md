@@ -286,6 +286,8 @@ python main.py
 
 ## 💬 Ví dụ sử dụng
 
+### 1. Hỏi đáp thông thường
+
 ```
 You: Giải thích async/await trong Python
 
@@ -320,6 +322,68 @@ You: B
   💡 Giải thích: `await` chỉ có thể sử dụng bên trong...
 ```
 
+### 2. Random Topic (Mới!)
+
+```
+You: /random
+
+Bot: 🎲 Random Topic
+
+     Chọn knowledge base để random topic:
+     (hoặc random mix từ tất cả)
+     
+     🐍 Python Master
+     🧮 Algorithms Expert  
+     ⚡ FastAPI Expert
+     🤖 AI Agents Architect
+     🇬🇧 English Tutor
+     🎲 Tất cả (Random mix)
+
+[User chọn: 🐍 Python Master]
+
+Bot: 🎲 Topics từ 🐍 Python Master:
+
+     🐍 Context Managers và with Statement
+       📄 python_advanced.pdf
+     
+     🐍 Decorators và Function Wrapping  
+       📄 python_programming_notes.pdf
+       
+     🐍 Metaclasses và Class Creation
+       📄 advanced_python.md
+       
+     [🐍 Context Managers...]  [🐍 Decorators...]  [🐍 Metaclasses...]
+     [🎲 Random lại]  [🧠 Quiz ngay]
+     [🔙 Chọn KB khác]
+
+[User tap "🐍 Decorators..."]
+
+Bot: 🐍 Python Master
+     
+     Theo "python_programming_notes.pdf":
+     Decorators là một design pattern trong Python cho phép...
+     [Chi tiết giải thích]
+     
+     [🧠 Quiz topic này]  [🎲 Random topic khác]
+```
+
+### 3. Quiz Context-Aware
+
+```
+You: Giải thích middleware trong FastAPI
+
+[Agent giải thích chi tiết]
+
+You: quiz
+
+Bot: 🧠 Quiz — FastAPI Middleware (Độ khó: medium)
+     
+     Câu hỏi được tạo từ context vừa hỏi đáp!
+     
+You: /quiz             # Quiz random từ KB hiện tại
+You: /random fastapi   # Random topics từ FastAPI KB
+```
+
 ---
 
 ## 🔧 Tech Stack
@@ -334,3 +398,212 @@ You: B
 | Embeddings | OpenAI text-embedding-3-small |
 | Bot | python-telegram-bot |
 | Database | SQLite |
+
+---
+
+## 🚀 Hướng dẫn mở rộng & Tích hợp Agent mới
+
+### Thêm Agent mới (3 bước đơn giản)
+
+#### Bước 1: Tạo Knowledge Base
+
+```bash
+# Tạo thư mục cho domain mới
+mkdir knowledge_bases/new_domain
+# Copy tài liệu vào (PDF, MD, TXT, PY...)
+cp your_documents.pdf knowledge_bases/new_domain/
+```
+
+#### Bước 2: Cấu hình Agent trong `config/settings.py`
+
+Mở file `config/settings.py` và thêm agent mới vào `AGENTS_CONFIG`:
+
+```python
+AGENTS_CONFIG: dict[str, AgentConfig] = {
+    # ... existing agents ...
+    
+    "new_domain": AgentConfig(
+        name="New Domain Expert",
+        description="Mô tả về domain này: chức năng, concepts, best practices...",
+        knowledge_base_path=str(BASE_DIR / "knowledge_bases/new_domain"),
+        emoji="🎯",  # Chọn emoji phù hợp
+        file_extensions=[".pdf", ".txt", ".md", ".py"],  # Các loại file hỗ trợ
+        use_rag=True,              # Bật RAG (khuyến nghị)
+        use_agentic_rag=True,      # Bật Agentic RAG pipeline
+    ),
+}
+```
+
+**Lưu ý quan trọng:**
+- `agent_id` (key trong dict) nên viết lowercase, dùng underscore: `"new_domain"`
+- `name` là tên hiển thị cho user
+- `description` giúp Supervisor route câu hỏi chính xác → viết chi tiết các keywords liên quan
+- File extensions: thêm `.ipynb` nếu muốn parse Jupyter notebooks
+
+#### Bước 3: Sync & Chạy
+
+```bash
+# Index tài liệu (chỉ agent mới)
+python main.py --sync new_domain
+
+# Xem trạng thái
+python main.py --status
+
+# Chạy bot
+python main.py
+```
+
+**Xong!** Agent mới tự động:
+- ✅ Được Supervisor nhận diện và route
+- ✅ Hiển thị trong `/menu` và inline keyboard
+- ✅ Hỗ trợ RAG, Quiz, Spaced Repetition
+- ✅ Random topics theo KB này
+
+### Ví dụ: Thêm "Machine Learning" Agent
+
+```python
+# config/settings.py
+AGENTS_CONFIG = {
+    # ...
+    "machine_learning": AgentConfig(
+        name="ML Engineer",
+        description="Machine Learning: scikit-learn, model training, evaluation metrics, "
+                    "feature engineering, hyperparameter tuning, model deployment...",
+        knowledge_base_path=str(BASE_DIR / "knowledge_bases/machine_learning"),
+        emoji="🤖",
+        file_extensions=[".pdf", ".md", ".py", ".ipynb"],
+    ),
+}
+```
+
+```bash
+# Thêm tài liệu
+cp ml_textbook.pdf knowledge_bases/machine_learning/
+cp sklearn_tutorial.md knowledge_bases/machine_learning/
+
+# Sync
+python main.py --sync machine_learning
+
+# Test CLI
+python main.py --cli
+>>> machine_learning
+>>> Giải thích cross-validation
+```
+
+### Tùy chỉnh nâng cao
+
+#### 1. Custom System Prompt cho Agent
+
+Nếu cần prompt đặc biệt, tạo subclass trong `agents/learning_agents.py`:
+
+```python
+class MachineLearningAgent(BaseLearningAgent):
+    agent_id = "machine_learning"
+    
+    @property
+    def system_prompt(self) -> str:
+        base = super().system_prompt
+        return base + """
+        
+PHONG CÁCH ĐẶC BIỆT CHO ML:
+- Luôn đề cập model performance metrics khi giải thích algorithms
+- Cung cấp code examples với scikit-learn/PyTorch
+- Highlight common pitfalls: overfitting, data leakage, feature scaling
+"""
+```
+
+Sau đó update `get_all_agents()` trong `learning_agents.py`:
+
+```python
+def get_all_agents() -> dict[str, BaseLearningAgent]:
+    return {
+        # ...
+        "machine_learning": MachineLearningAgent(AGENTS_CONFIG["machine_learning"]),
+    }
+```
+
+#### 2. Agent không dùng RAG (LLM thuần)
+
+Nếu muốn agent chỉ dùng kiến thức LLM (không search docs):
+
+```python
+AgentConfig(
+    name="General Assistant",
+    description="Trợ lý chung, không chuyên domain cụ thể",
+    knowledge_base_path="",  # Không cần
+    emoji="💬",
+    use_rag=False,           # TẮT RAG
+    use_agentic_rag=False,
+)
+```
+
+#### 3. Reindex hoàn toàn (sau khi thay đổi chunking strategy)
+
+```bash
+# Xóa vector store + reindex từ đầu
+python main.py --reindex new_domain
+```
+
+### Kiểm tra Agent hoạt động
+
+```bash
+# 1. Xem status
+python main.py --status
+
+# 2. Test CLI mode
+python main.py --cli
+>>> new_domain
+>>> Hỏi về topic trong domain
+
+# 3. Thử random topics
+/random new_domain
+
+# 4. Quiz từ nội dung
+>>> Quiz về [topic]
+
+# 5. Xem stats
+/stats
+```
+
+### Best Practices
+
+| Vấn đề | Giải pháp |
+|--------|-----------|
+| **Agent không route đúng** | Cải thiện `description` với nhiều keywords liên quan |
+| **Chunking quá lớn/nhỏ** | Điều chỉnh `chunk_size` trong `rag_engine.py` |
+| **Quiz quá dễ/khó** | Tích lũy data → Quiz Agent tự adjust theo history |
+| **Retrieval không chính xác** | Thêm tài liệu liên quan + reindex |
+| **Token cost cao** | Incremental sync → chỉ embed file mới/thay đổi |
+
+### Backup & Migration
+
+```bash
+# Backup vector stores + data
+tar -czf backup.tar.gz vector_stores/ data/
+
+# Restore
+tar -xzf backup.tar.gz
+
+# Copy sang máy khác
+scp -r vector_stores/ user@remote:/path/
+```
+
+---
+
+## 🚀 Roadmap & Nâng cấp
+
+Xem [UPGRADE_SUGGESTIONS.md](UPGRADE_SUGGESTIONS.md) cho danh sách đầy đủ các tính năng dự kiến và cải tiến.
+
+**Quick Wins** (implement trong 1-3 ngày):
+- 💾 **Caching Layer**: Giảm 40-60% OpenAI costs
+- 📊 **Progress Indicators**: Better UX cho long operations
+- 👍👎 **Feedback Loop**: Track user satisfaction
+- 🐳 **Docker Deployment**: Easy deployment và scaling
+
+Xem chi tiết implementation guide tại [QUICK_WINS.md](QUICK_WINS.md).
+
+---
+
+## 📝 License
+
+MIT License - feel free to use and modify!
