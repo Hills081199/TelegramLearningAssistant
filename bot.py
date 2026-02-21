@@ -4,6 +4,7 @@ Tính năng quiz: Inline keyboard buttons (A/B/C/D) + context-aware từ hội t
 """
 import asyncio
 import json
+from typing import Optional
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 )
@@ -273,13 +274,30 @@ class LearningBot:
 
         # ── Random topic ──────────────────────────────────────────────────────
         elif data == "action:random_topic":
-            await query.edit_message_text("🎲 Đang chọn topic ngẫu nhiên...")
-            await self._send_random_topics(update, callback=True)
+            # Hiển thị menu chọn KB
+            await self._send_random_menu(update, callback=True)
+        
+        elif data.startswith("random_kb:"):
+            kb_id = data.split(":", 1)[1]
+            await ctx.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+            if kb_id == "all":
+                await self._send_random_topics(update, callback=True, agent_filter=None)
+            else:
+                await self._send_random_topics(update, callback=True, agent_filter=kb_id)
 
         # ── Ask about random topic (user tapped a topic button) ───────────────
         elif data.startswith("ask_topic:"):
             topic_text = data.split(":", 1)[1]
-            await query.edit_message_text(f"💬 Đang tìm hiểu: _{topic_text}_...", parse_mode=ParseMode.MARKDOWN)
+            # Delete hoặc edit message cũ
+            try:
+                await query.delete_message()
+            except Exception:
+                await query.edit_message_text(f"💬 Đang tìm hiểu: _{topic_text}_...")
+            
+            # Show typing action
+            await ctx.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+            
+            # Process và reply
             await self._ask_about_topic(update, chat_id, topic_text)
 
         # ── Quiz answer (inline button A/B/C/D) ──────────────────────────────
@@ -649,7 +667,7 @@ class LearningBot:
                 f"Giải thích chi tiết về: {topic}", session_id=chat_id
             )
             cfg = AGENTS_CONFIG.get(agent_id)
-            header = f"{cfg.emoji} *{cfg.name}*\n" if cfg else ""
+            header = f"{cfg.emoji} *{cfg.name}*\n\n" if cfg else ""
 
             # Thêm buttons sau khi trả lời
             keyboard = [
@@ -661,20 +679,25 @@ class LearningBot:
             if len(full) > 4000:
                 full = full[:4000] + "\n\n_...xem thêm bằng cách hỏi lại._"
 
+            # Get the right message object to reply to
+            target_message = update.callback_query.message if update.callback_query else update.message
+            
             try:
-                await update.callback_query.message.reply_text(
+                await target_message.reply_text(
                     full,
                     parse_mode=ParseMode.MARKDOWN,
                     reply_markup=InlineKeyboardMarkup(keyboard),
                 )
             except Exception:
-                await update.callback_query.message.reply_text(
+                # Fallback without markdown if parsing fails
+                await target_message.reply_text(
                     full,
                     reply_markup=InlineKeyboardMarkup(keyboard),
                 )
         except Exception as e:
-            logger.error(f"Ask topic error: {e}")
-            await update.callback_query.message.reply_text(f"⚠️ Lỗi: {str(e)[:100]}")
+            logger.error(f"Ask topic error: {e}", exc_info=True)
+            target_message = update.callback_query.message if update.callback_query else update.message
+            await target_message.reply_text(f"⚠️ Lỗi: {str(e)[:100]}")
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
