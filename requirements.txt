@@ -1,0 +1,28 @@
+# Core AI/LLM
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langchain-community>=0.3.0
+langchain-chroma>=0.1.0
+langchain-text-splitters>=0.3.0
+langgraph>=0.2.0
+
+# Vector store
+chromadb>=0.5.0
+
+# Document loaders
+pypdf>=4.0.0
+
+# PDF parsing (Docling — advanced table/layout extraction)
+docling>=2.0.0
+
+# BM25 retriever (for ensemble search)
+rank-bm25>=0.2.0
+
+# Telegram bot
+python-telegram-bot[job-queue]>=21.0
+APScheduler>=3.10.0
+
+# Utilities
+loguru>=0.7.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
